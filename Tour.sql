@@ -74,12 +74,32 @@ CREATE TABLE IF NOT EXISTS `food_restaurant` (
 
 -- Đang đổ dữ liệu cho bảng food_tourism.food_restaurant: ~0 rows (xấp xỉ)
 
--- Dumping structure for bảng food_tourism.provinces
+-- 1. Bảng Tỉnh/Thành phố
 CREATE TABLE IF NOT EXISTS `provinces` (
   `province_id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) NOT NULL,
   `slug` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`province_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 2. Bảng Quận/Huyện
+CREATE TABLE IF NOT EXISTS `districts` (
+  `district_id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `province_id` int(11) NOT NULL,
+  PRIMARY KEY (`district_id`),
+  KEY `province_id` (`province_id`),
+  CONSTRAINT `districts_ibfk_1` FOREIGN KEY (`province_id`) REFERENCES `provinces` (`province_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 3. Bảng Phường/Xã
+CREATE TABLE IF NOT EXISTS `wards` (
+  `ward_id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL,
+  `district_id` int(11) NOT NULL,
+  PRIMARY KEY (`ward_id`),
+  KEY `district_id` (`district_id`),
+  CONSTRAINT `wards_ibfk_1` FOREIGN KEY (`district_id`) REFERENCES `districts` (`district_id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Đang đổ dữ liệu cho bảng food_tourism.provinces: ~0 rows (xấp xỉ)
@@ -89,19 +109,19 @@ CREATE TABLE IF NOT EXISTS `restaurants` (
   `restaurant_id` int(11) NOT NULL AUTO_INCREMENT,
   `owner_id` int(11) DEFAULT NULL,
   `name` varchar(150) NOT NULL,
-  `address` varchar(255) DEFAULT NULL,
+  `address` varchar(255) DEFAULT NULL, -- Số nhà, tên đường
+  `ward_id` int(11) DEFAULT NULL,      -- Liên kết đến Phường/Xã
   `latitude` decimal(10,8) DEFAULT NULL,
   `longitude` decimal(11,8) DEFAULT NULL,
   `image` varchar(255) DEFAULT NULL,
-  `province_id` int(11) DEFAULT NULL,
   `description` text DEFAULT NULL,
   `status` enum('pending','approved','rejected') DEFAULT 'pending',
   `created_at` datetime DEFAULT current_timestamp(),
   PRIMARY KEY (`restaurant_id`),
   KEY `owner_id` (`owner_id`),
-  KEY `province_id` (`province_id`),
+  KEY `ward_id` (`ward_id`),
   CONSTRAINT `restaurants_ibfk_1` FOREIGN KEY (`owner_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
-  CONSTRAINT `restaurants_ibfk_2` FOREIGN KEY (`province_id`) REFERENCES `provinces` (`province_id`)
+  CONSTRAINT `restaurants_ibfk_3` FOREIGN KEY (`ward_id`) REFERENCES `wards` (`ward_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Đang đổ dữ liệu cho bảng food_tourism.restaurants: ~0 rows (xấp xỉ)
