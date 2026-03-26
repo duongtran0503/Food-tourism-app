@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   LayoutDashboard,
   Utensils,
+  UtensilsCrossed, // Thêm icon này cho Foods
   MapPin,
   Music,
   ClipboardList,
@@ -36,7 +37,12 @@ const merchantNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Quản lý thực đơn",
+    title: "Quản lý món ăn", // Mục Foods mới thêm vào
+    url: "/merchant/foods",
+    icon: UtensilsCrossed,
+  },
+  {
+    title: "Thực đơn hiển thị",
     url: "/merchant/menu",
     icon: Utensils,
   },
@@ -47,12 +53,12 @@ const merchantNavItems = [
   },
   {
     title: "Tọa độ & GPS",
-    url: "/merchant/location", // Trang quan trọng cho dự án của bạn
+    url: "/merchant/location",
     icon: MapPin,
   },
   {
     title: "Audio thuyết minh",
-    url: "/merchant/audio",    // Nơi upload file giới thiệu quán
+    url: "/merchant/audio",
     icon: Music,
   },
 ];
@@ -91,7 +97,7 @@ export function MerchantSidebar() {
         {/* Nhóm Menu Vận hành */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Quản lý cửa hàng
+            Vận hành hệ thống
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
