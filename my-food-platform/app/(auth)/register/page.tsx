@@ -40,6 +40,42 @@ export default function RegisterPage() {
     },
   });
 
+  const onSubmit = async (values: any) => { // Thay 'any' bằng type form của bạn (vd: RegisterFormValues)
+    try {
+      // 1. Gọi API sang NestJS
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          // Map dữ liệu từ form sang định dạng Backend cần
+          // Dựa theo db của bạn, bảng users có: username, email, password, role
+          username: values.fullName, 
+          email: values.email,
+          password: values.password,
+          // Nếu backend yêu cầu thêm số điện thoại hay gì thì bạn thêm vào đây nhé
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Báo lỗi nếu backend trả về (ví dụ: Trùng email)
+        alert("Lỗi: " + (data.message || "Đăng ký thất bại"));
+        return;
+      }
+
+      // 2. Thành công
+      alert("Đăng ký thành công! Chuyển sang trang đăng nhập...");
+      // Bạn có thể dùng router.push('/login') ở đây
+      
+    } catch (error) {
+      console.error("Lỗi khi gọi API:", error);
+      alert("Không thể kết nối đến server!");
+    }
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -62,7 +98,7 @@ export default function RegisterPage() {
 
         <div className="bg-card/50 backdrop-blur-md border border-border p-8 rounded-3xl shadow-2xl">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => console.log(v))} className="space-y-6">
+           <form onSubmit={form.handleSubmit(onSubmit, (errors) => console.log("Lỗi chặn form:", errors))} className="space-y-5">
               
               {/* PHẦN CHỌN AVATAR */}
               <div className="flex flex-col items-center justify-center space-y-3">

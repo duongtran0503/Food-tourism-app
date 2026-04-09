@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail, Lock, LogIn, UtensilsCrossed, ChevronLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,18 +20,50 @@ import {
 import { loginSchema, type LoginFormValues } from "@/lib/zod-schemas";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
-  const onSubmit = (values: LoginFormValues) => {
-    console.log("Đăng nhập với:", values);
+  const onSubmit = async (values: LoginFormValues) => {
+    setIsLoading(true);
+    setErrorMsg(null);
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(values),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+      }
+
+      if (data.accessToken) {
+        localStorage.setItem("access_token", data.accessToken);
+      }
+
+      router.push("/admin/restaurants"); 
+
+    } catch (error: any) {
+      console.error("Lỗi đăng nhập:", error);
+      setErrorMsg(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      {/* Nút quay lại trang chủ ở góc trên bên trái */}
       <Link 
         href="/" 
         className="absolute top-8 left-8 flex items-center text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
@@ -38,7 +72,6 @@ export default function LoginPage() {
       </Link>
 
       <div className="w-full max-w-[420px] space-y-8">
-        {/* Phần Logo và Tiêu đề */}
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="p-3 rounded-2xl bg-primary shadow-lg shadow-primary/20">
             <UtensilsCrossed className="h-8 w-8 text-primary-foreground" />
@@ -47,8 +80,13 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-sm">Chào mừng bạn trở lại với hệ thống quản trị.</p>
         </div>
 
-        {/* Card chứa Form */}
         <div className="bg-card border border-border p-8 rounded-[2rem] shadow-xl shadow-black/5">
+          {errorMsg && (
+            <div className="mb-4 p-3 text-sm text-red-500 bg-red-100 rounded-lg text-center font-medium">
+              {errorMsg}
+            </div>
+          )}
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
@@ -97,13 +135,17 @@ export default function LoginPage() {
                 )}
               />
 
-              <Button type="submit" className="w-full h-11 text-base font-bold shadow-lg shadow-primary/20 active:scale-[0.98] transition-all">
-                <LogIn className="mr-2 h-5 w-5" /> Đăng nhập ngay
+              <Button 
+                type="submit" 
+                disabled={isLoading}
+                className="w-full h-11 text-base font-bold shadow-lg shadow-primary/20 active:scale-[0.98] transition-all"
+              >
+                <LogIn className="mr-2 h-5 w-5" /> 
+                {isLoading ? "Đang xử lý..." : "Đăng nhập ngay"}
               </Button>
             </form>
           </Form>
 
-          {/* Ngăn cách */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border" />
@@ -120,7 +162,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Chân trang chuyển hướng */}
         <p className="text-center text-sm text-muted-foreground">
           Chưa có tài khoản đối tác?{" "}
           <Link href="/register" className="font-bold text-primary hover:text-primary/80 transition-colors">
