@@ -49,12 +49,10 @@ export default function RegisterPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          // Map dữ liệu từ form sang định dạng Backend cần
-          // Dựa theo db của bạn, bảng users có: username, email, password, role
-          username: values.fullName, 
+          fullName: values.fullName, 
           email: values.email,
           password: values.password,
-          // Nếu backend yêu cầu thêm số điện thoại hay gì thì bạn thêm vào đây nhé
+          confirmPassword: values.confirmPassword, // Thêm dòng này vào là xong!
         }),
       });
 
