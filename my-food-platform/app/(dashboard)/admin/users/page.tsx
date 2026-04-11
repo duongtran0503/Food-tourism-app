@@ -1,156 +1,209 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserMockAPI, UserItem } from "@/lib/mock-api";
+import { UserService } from "@/lib/user-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Pencil, Trash2, MoreHorizontal, ShieldAlert, UserCheck } from "lucide-react";
+import { 
+  Loader2, Plus, Pencil, Trash2, Users, Mail, Phone, ShieldCheck, Search, UserCircle, Store, Lock 
+} from "lucide-react";
 import { toast } from "sonner";
 
-export default function UsersManagementPage() {
-  const [users, setUsers] = useState<UserItem[]>([]);
+export default function UserManagementPage() {
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
 
-  // Load data
-  const fetchUsers = async () => {
+  const loadData = async () => {
     setLoading(true);
-    const data = await UserMockAPI.getUsers();
-    setUsers(data);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchUsers(); }, []);
-
-  // Xử lý Lưu (Cả Thêm mới và Sửa)
-  const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const userData = Object.fromEntries(formData.entries());
-
     try {
-      if (editingUser) {
-        await UserMockAPI.updateUser(editingUser.id, userData as any);
-        toast.success("Cập nhật người dùng thành công");
-      } else {
-        await UserMockAPI.createUser(userData as any);
-        toast.success("Thêm người dùng mới thành công");
-      }
-      setIsDialogOpen(false);
-      setEditingUser(null);
-      fetchUsers();
-    } catch (err) {
-      toast.error("Thao tác thất bại");
+      const res = await UserService.getAll();
+      setUsers(res.data.data.items || []);
+    } catch (error) {
+      toast.error("Không thể tải danh sách người dùng");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Xử lý Xóa
-  const handleDelete = async (id: string) => {
-    if (confirm("Bạn có chắc chắn muốn xóa vĩnh viễn người dùng này?")) {
-      await UserMockAPI.deleteUser(id);
-      toast.error("Đã xóa người dùng");
-      fetchUsers();
+  useEffect(() => { loadData(); }, []);
+
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    // Khởi tạo Payload
+    const payload: any = {
+      fullName: formData.get("fullName"),
+      email: formData.get("email"),
+      phoneNumber: formData.get("phoneNumber"),
+      role: formData.get("role"),
+    };
+
+    // CHỈ lấy password khi tạo người dùng mới (Create Mode)
+    if (!editingUser) {
+      const password = formData.get("password") as string;
+      if (password.length < 8) {
+        return toast.error("Mật khẩu phải có ít nhất 8 ký tự");
+      }
+      payload.password = password;
+    }
+
+    try {
+      if (editingUser) {
+        await UserService.update(editingUser.id, payload);
+        toast.success("Cập nhật thông tin thành công");
+      } else {
+        await UserService.create(payload);
+        toast.success("Đã tạo người dùng mới thành công");
+      }
+      setIsOpen(false);
+      loadData();
+    } catch (error: any) {
+      const msg = error.response?.data?.message || "Lỗi dữ liệu";
+      toast.error(Array.isArray(msg) ? msg[0] : msg);
+    }
+  };
+
+  const renderRoleBadge = (role: string) => {
+    switch (role) {
+      case "ADMIN":
+        return <Badge className="bg-red-100 text-red-700 border-none hover:bg-red-100"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>;
+      case "MERCHANT":
+        return <Badge className="bg-orange-100 text-orange-700 border-none hover:bg-orange-100"><Store className="w-3 h-3 mr-1" /> Merchant</Badge>;
+      default:
+        return <Badge className="bg-blue-100 text-blue-700 border-none hover:bg-blue-100"><UserCircle className="w-3 h-3 mr-1" /> Customer</Badge>;
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Quản lý Users</h2>
-          <p className="text-muted-foreground">Thêm, sửa, xóa và phân quyền người dùng hệ thống.</p>
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
+            <Users className="text-indigo-600" /> Quản trị Người dùng
+          </h1>
+          <p className="text-sm text-muted-foreground italic">Quản lý toàn bộ Customer, Merchant và Admin hệ thống</p>
         </div>
-        
-        {/* MODAL THÊM MỚI */}
-        <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if(!open) setEditingUser(null); }}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary shadow-lg shadow-primary/20">
-              <Plus className="mr-2 h-4 w-4" /> Thêm người dùng
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>{editingUser ? "Chỉnh sửa thông tin" : "Tạo người dùng mới"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSaveUser} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Họ và tên</Label>
-                <Input name="fullName" defaultValue={editingUser?.fullName} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input name="email" type="email" defaultValue={editingUser?.email} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Số điện thoại</Label>
-                <Input name="phoneNumber" defaultValue={editingUser?.phoneNumber} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Vai trò (Role)</Label>
-                <Select name="role" defaultValue={editingUser?.role || "CUSTOMER"}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn vai trò" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ADMIN">Quản trị viên</SelectItem>
-                    <SelectItem value="MERCHANT">Chủ quán ăn</SelectItem>
-                    <SelectItem value="CUSTOMER">Khách hàng</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter className="pt-4">
-                <Button type="submit" className="w-full">Lưu thay đổi</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => { setEditingUser(null); setIsOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700">
+          <Plus className="mr-2 h-4 w-4" /> Thêm người dùng
+        </Button>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="animate-spin h-10 w-10 text-primary" /></div>
-      ) : (
-        <div className="rounded-2xl border bg-card">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Họ tên</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Vai trò</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead className="text-right">Hành động</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.fullName}</TableCell>
-                  <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                  <TableCell><Badge variant="outline">{user.role}</Badge></TableCell>
-                  <TableCell>
-                    <Badge className={user.status === "ACTIVE" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}>
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditingUser(user); setIsDialogOpen(true); }}>
-                      <Pencil className="h-4 w-4 text-blue-500" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(user.id)}>
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b flex items-center gap-2">
+          <Search className="h-4 w-4 text-slate-400" />
+          <Input placeholder="Tìm kiếm người dùng..." className="max-w-xs border-none shadow-none focus-visible:ring-0" />
         </div>
-      )}
+        
+        <Table>
+          <TableHeader className="bg-slate-50">
+            <TableRow>
+              <TableHead>Thông tin</TableHead>
+              <TableHead>Liên hệ</TableHead>
+              <TableHead>Vai trò</TableHead>
+              <TableHead className="text-right">Thao tác</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-indigo-500" /></TableCell></TableRow>
+            ) : users.length === 0 ? (
+              <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">Chưa có người dùng nào</TableCell></TableRow>
+            ) : users.map((user) => (
+              <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">
+                <TableCell>
+                  <div className="font-semibold text-slate-700">{user.fullName}</div>
+                  <div className="text-xs text-slate-400 flex items-center gap-1"><Mail className="h-3 w-3" /> {user.email}</div>
+                </TableCell>
+                <TableCell className="text-slate-600 text-sm">
+                   <span className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5" /> {user.phoneNumber || "N/A"}</span>
+                </TableCell>
+                <TableCell>{renderRoleBadge(user.role)}</TableCell>
+                <TableCell className="text-right space-x-1">
+                  <Button variant="ghost" size="icon" onClick={() => { setEditingUser(user); setIsOpen(true); }}>
+                    <Pencil className="h-4 w-4 text-blue-500" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => { if(confirm("Xóa vĩnh viễn tài khoản này?")) UserService.delete(user.id).then(() => loadData()); }}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+               {editingUser ? <Pencil className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+               {editingUser ? "Cập nhật tài khoản" : "Cấp tài khoản mới"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="space-y-4 pt-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Họ và tên</label>
+              <Input name="fullName" defaultValue={editingUser?.fullName} required placeholder="Ví dụ: Lê Văn Thanh" />
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Email định danh</label>
+              <Input name="email" type="email" defaultValue={editingUser?.email} required placeholder="staff@example.com" disabled={!!editingUser} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Số điện thoại (10 số)</label>
+              <Input 
+                name="phoneNumber" 
+                defaultValue={editingUser?.phoneNumber} 
+                required 
+                placeholder="0988777666" 
+                pattern="[0-9]{10}" 
+                title="Vui lòng nhập đúng 10 chữ số"
+              />
+            </div>
+
+            {/* HIỂN THỊ MẬT KHẨU KHI TẠO MỚI */}
+            {!editingUser && (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium flex items-center gap-1">
+                   <Lock className="w-3.5 h-3.5" /> Mật khẩu khởi tạo
+                </label>
+                <Input 
+                  name="password" 
+                  type="password" 
+                  required 
+                  placeholder="Ít nhất 8 ký tự..." 
+                  minLength={8}
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Vai trò hệ thống</label>
+              <select 
+                name="role" 
+                defaultValue={editingUser?.role || "USER"}
+                className="w-full p-2 border rounded-md text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="USER">CUSTOMER (Khách hàng)</option>
+                <option value="MERCHANT">MERCHANT (Đối tác quán ăn)</option>
+                <option value="ADMIN">ADMIN (Quản trị viên)</option>
+              </select>
+            </div>
+
+            <Button type="submit" className="w-full mt-4 bg-indigo-600 hover:bg-indigo-700 transition-colors">
+               {editingUser ? "Lưu thay đổi" : "Khởi tạo tài khoản"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

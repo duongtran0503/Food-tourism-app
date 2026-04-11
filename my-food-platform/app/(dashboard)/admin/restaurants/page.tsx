@@ -1,155 +1,284 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { RestaurantAPI, Restaurant, MOCK_FOODS, Food } from "@/lib/mock-api";
+import { useEffect, useState, useMemo } from "react";
+import { RestaurantService, FoodService } from "@/lib/restaurant-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox"; // npx shadcn@latest add checkbox
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Plus, Pencil, Trash2, UtensilsCrossed, Phone, MapPin, Clock } from "lucide-react";
+import { 
+  Loader2, Plus, Pencil, Trash2, Store, MapPin, Phone, Clock, Search, UtensilsCrossed 
+} from "lucide-react";
 import { toast } from "sonner";
 
+/**
+ * 🛡️ HELPER: Xử lý dữ liệu đa ngôn ngữ (i18n)
+ * Đảm bảo không bao giờ bị lỗi "Objects are not valid as a React child"
+ */
+const getLabel = (data: any): string => {
+  if (!data) return "";
+  if (typeof data === "string") return data;
+  if (typeof data === "object" && data !== null) {
+    // Ưu tiên Tiếng Việt, sau đó đến các ngôn ngữ khác
+    const val = data.vi || data.en || data.jp || data.zh || data.ru || Object.values(data)[0];
+    return typeof val === "string" ? val : ""; 
+  }
+  return String(data);
+};
+
 export default function AdminRestaurantsPage() {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [allFoods, setAllFoods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
-  const [editingRes, setEditingRes] = useState<Partial<Restaurant> | null>(null);
+  const [editingRes, setEditingRes] = useState<any | null>(null);
   const [selectedFoodIds, setSelectedFoodIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [pagination, setPagination] = useState({ totalPages: 1, currentPage: 1 });
 
-  const loadData = async () => {
+  // Map tra cứu tên món ăn từ danh sách ID
+  const foodMap = useMemo(() => {
+    return new Map(allFoods.map(f => [f.id || f._id, f.name]));
+  }, [allFoods]);
+
+  /**
+   * 🔄 HÀM TẢI DỮ LIỆU: Bóc tách đúng cấu trúc JSON của bạn
+   */
+  const loadData = async (page = 1) => {
     setLoading(true);
-    setRestaurants(await RestaurantAPI.getRestaurants());
-    setLoading(false);
+    try {
+      const [resData, foodData] = await Promise.all([
+        RestaurantService.getAll({ page, limit: 10, search: searchQuery }),
+        FoodService.getAll()
+      ]);
+
+      // 🎯 BÓC TÁCH DỮ LIỆU: Khớp với JSON res.data.data.items
+      const responseBody = resData.data.data; 
+      
+      if (responseBody) {
+        setRestaurants(responseBody.items || []); 
+        setPagination(responseBody.meta || { totalPages: 1, currentPage: page });
+      }
+
+      // Xử lý dữ liệu món ăn cho Checkbox
+      const foodsRaw = foodData.data?.data?.items || foodData.data?.items || [];
+      setAllFoods(foodsRaw);
+
+    } catch (error) {
+      console.error("Fetch error:", error);
+      toast.error("Không thể tải danh sách nhà hàng");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadData(); }, []);
 
-  const handleEdit = (res: Restaurant) => {
-    setEditingRes(res);
-    setSelectedFoodIds(res.foodIds || []);
-    setIsOpen(true);
+  const handleEdit = async (res: any) => {
+    try {
+      const detail = await RestaurantService.getById(res.id || res._id);
+      // Backend chi tiết trả về: { data: { ...restaurant_info } }
+      const data = detail.data.data || detail.data;
+      setEditingRes(data);
+
+      // Chuyển mảng foods về ID để Checkbox nhận diện
+      const ids = (data.foods || []).map((f: any) => typeof f === 'string' ? f : (f.id || f._id));
+      setSelectedFoodIds(ids);
+      setIsOpen(true);
+    } catch (error) {
+      toast.error("Lỗi lấy thông tin chi tiết");
+    }
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const data = {
-      ...Object.fromEntries(formData.entries()),
-      id: editingRes?.id,
-      foodIds: selectedFoodIds,
+    
+    const payload = {
+      name: formData.get("name"), 
+      address: formData.get("address"),
+      phoneNumber: formData.get("phoneNumber"),
+      openingHours: formData.get("openingHours"),
+      location: {
+        lat: Number(formData.get("lat")),
+        lng: Number(formData.get("lng")),
+      },
+      foods: selectedFoodIds,
     };
 
-    await RestaurantAPI.saveRestaurant(data);
-    toast.success("Đã lưu thông tin nhà hàng");
-    setIsOpen(false);
-    loadData();
+    try {
+      const targetId = editingRes?.id || editingRes?._id;
+      if (targetId) {
+        await RestaurantService.update(targetId, payload);
+        toast.success("Cập nhật thành công");
+        loadData(pagination.currentPage);
+      } else {
+        await RestaurantService.create(payload);
+        toast.success("Thêm nhà hàng mới thành công");
+        loadData(1);
+      }
+      setIsOpen(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Lưu dữ liệu thất bại");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Bạn có chắc muốn xóa nhà hàng này?")) return;
+    try {
+      await RestaurantService.delete(id);
+      toast.success("Đã xóa nhà hàng");
+      loadData(pagination.currentPage);
+    } catch (error) {
+      toast.error("Xóa thất bại");
+    }
   };
 
   return (
     <div className="p-6 space-y-6">
+      {/* 1. Header: Indigo Style */}
       <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight">Đối tác Merchant</h2>
-        <Button onClick={() => { setEditingRes(null); setSelectedFoodIds([]); setIsOpen(true); }}>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
+            <Store className="text-indigo-600" /> Quản trị Nhà hàng
+          </h1>
+          <p className="text-sm text-muted-foreground italic">Quản lý mạng lưới quán ăn trên hệ thống Food Tour</p>
+        </div>
+        <Button onClick={() => { setEditingRes(null); setSelectedFoodIds([]); setIsOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700 transition-all">
           <Plus className="mr-2 h-4 w-4" /> Thêm nhà hàng
         </Button>
       </div>
 
-      {loading ? <Loader2 className="animate-spin mx-auto mt-20" /> : (
-        <div className="grid gap-4">
-          {restaurants.map((res) => (
-            <RestaurantCard key={res.id} res={res} onEdit={() => handleEdit(res)} onDelete={() => { RestaurantAPI.delete(res.id); loadData(); }} />
-          ))}
+      {/* 2. Table: Phong cách Indigo Table giống trang User */}
+      <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+        <div className="p-4 border-b flex items-center gap-2">
+          <Search className="h-4 w-4 text-slate-400" />
+          <Input 
+            placeholder="Tìm kiếm quán ăn..." 
+            className="max-w-xs border-none shadow-none focus-visible:ring-0"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && loadData(1)}
+          />
         </div>
-      )}
+        
+        <Table>
+          <TableHeader className="bg-slate-50">
+            <TableRow>
+              <TableHead>Thông tin nhà hàng</TableHead>
+              <TableHead>Liên hệ & Giờ mở cửa</TableHead>
+              <TableHead>Thực đơn</TableHead>
+              <TableHead className="text-right">Thao tác</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-indigo-500" /></TableCell></TableRow>
+            ) : restaurants.length === 0 ? (
+              <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">Không tìm thấy dữ liệu nhà hàng</TableCell></TableRow>
+            ) : restaurants.map((res) => (
+              <TableRow key={res.id || res._id} className="hover:bg-slate-50 transition-colors">
+                <TableCell>
+                  <div className="font-semibold text-slate-700">{getLabel(res.name)}</div>
+                  <div className="text-xs text-slate-400 flex items-center gap-1 mt-1">
+                    <MapPin size={12} /> {getLabel(res.address)}
+                  </div>
+                </TableCell>
+                <TableCell className="text-slate-600 text-sm">
+                   <div className="flex items-center gap-1.5 font-medium"><Phone size={14} className="text-indigo-600" /> {res.phoneNumber || "N/A"}</div>
+                   <div className="text-xs text-slate-400 flex items-center gap-1.5 mt-1">
+                     <Clock size={14} /> {getLabel(res.openingHours) || "Chưa cập nhật"}
+                   </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1 max-w-[200px]">
+                    {res.foods?.slice(0, 2).map((fid: any, idx: number) => (
+                      <Badge key={idx} variant="secondary" className="bg-indigo-50 text-indigo-700 border-none text-[10px] px-2 py-0">
+                        {getLabel(foodMap.get(typeof fid === 'string' ? fid : (fid.id || fid._id)))}
+                      </Badge>
+                    ))}
+                    {res.foods?.length > 2 && <span className="text-[10px] text-slate-400">+{res.foods.length - 2}</span>}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right space-x-1">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(res)}>
+                    <Pencil className="h-4 w-4 text-blue-500" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(res.id || res._id)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* DIALOG CREATE / UPDATE */}
+      {/* 3. DIALOG: Form 2 cột sạch sẽ */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingRes ? "Sửa nhà hàng" : "Thêm nhà hàng mới"}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 py-4">
-            <div className="space-y-2 col-span-2 md:col-span-1">
-              <label className="text-sm font-medium">Tên nhà hàng</label>
-              <Input name="fullName" defaultValue={editingRes?.fullName} required />
+        <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-bold text-xl">
+               {editingRes ? <Pencil className="w-5 h-5 text-indigo-600" /> : <Plus className="w-5 h-5 text-indigo-600" />}
+               {editingRes ? "Cập nhật dữ liệu quán" : "Thêm quán ăn mới"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 pt-4">
+            <div className="space-y-1.5 col-span-2 md:col-span-1">
+              <label className="text-sm font-semibold">Tên nhà hàng</label>
+              <Input name="name" defaultValue={getLabel(editingRes?.name)} required className="rounded-xl border-slate-200" />
             </div>
-            <div className="space-y-2 col-span-2 md:col-span-1">
-              <label className="text-sm font-medium">Hotline</label>
-              <Input name="phoneNumber" defaultValue={editingRes?.phoneNumber} required />
+            <div className="space-y-1.5 col-span-2 md:col-span-1">
+              <label className="text-sm font-semibold">Số điện thoại</label>
+              <Input name="phoneNumber" defaultValue={editingRes?.phoneNumber} className="rounded-xl border-slate-200" />
             </div>
-            <div className="space-y-2 col-span-2">
-              <label className="text-sm font-medium">Địa chỉ chính xác</label>
-              <Input name="address" defaultValue={editingRes?.address} required />
+            <div className="space-y-1.5 col-span-2">
+              <label className="text-sm font-semibold">Địa chỉ chi tiết</label>
+              <Input name="address" defaultValue={getLabel(editingRes?.address)} required className="rounded-xl border-slate-200" />
             </div>
-            <div className="space-y-2 col-span-2 md:col-span-1">
-              <label className="text-sm font-medium">Giờ mở cửa</label>
-              <Input name="openingHours" placeholder="08:00 - 22:00" defaultValue={editingRes?.openingHours} />
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold">Vĩ độ (Lat)</label>
+              <Input name="lat" type="number" step="any" defaultValue={editingRes?.location?.lat || 10.762} required className="rounded-xl" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-semibold">Kinh độ (Lng)</label>
+              <Input name="lng" type="number" step="any" defaultValue={editingRes?.location?.lng || 106.66} required className="rounded-xl" />
+            </div>
+            <div className="space-y-1.5 col-span-2">
+              <label className="text-sm font-semibold">Giờ hoạt động</label>
+              <Input name="openingHours" defaultValue={getLabel(editingRes?.openingHours)} placeholder="07:00 - 22:00" className="rounded-xl" />
             </div>
 
-            {/* CHỌN DANH SÁCH MÓN ĂN */}
-            <div className="col-span-2 space-y-3">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <UtensilsCrossed className="h-4 w-4" /> Thực đơn của quán
+            {/* PHẦN CHỌN MÓN ĂN */}
+            <div className="col-span-2 space-y-2">
+              <label className="text-sm font-bold flex items-center gap-1 text-indigo-600">
+                <UtensilsCrossed size={14} /> Thực đơn liên kết
               </label>
-              <div className="grid grid-cols-2 gap-2 border rounded-xl p-4 bg-muted/20">
-                {MOCK_FOODS.map((food) => (
-                  <div key={food.id} className="flex items-center space-x-2 bg-background p-2 rounded-lg border">
+              <div className="grid grid-cols-2 gap-2 p-3 border rounded-xl bg-slate-50 max-h-40 overflow-y-auto">
+                {allFoods.map((food) => (
+                  <div key={food.id || food._id} className="flex items-center space-x-2 bg-white p-2 rounded-lg border text-xs shadow-sm">
                     <Checkbox 
-                      id={food.id} 
-                      checked={selectedFoodIds.includes(food.id)}
+                      id={food.id || food._id} 
+                      checked={selectedFoodIds.includes(food.id || food._id)}
                       onCheckedChange={(checked) => {
-                        setSelectedFoodIds(prev => checked ? [...prev, food.id] : prev.filter(id => id !== food.id));
+                        const id = food.id || food._id;
+                        setSelectedFoodIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id));
                       }}
                     />
-                    <label htmlFor={food.id} className="text-xs font-medium cursor-pointer flex-1">
-                      {food.name} <span className="text-muted-foreground ml-1">({food.price.toLocaleString()}đ)</span>
-                    </label>
+                    <label htmlFor={food.id || food._id} className="cursor-pointer font-medium truncate flex-1">{getLabel(food.name)}</label>
                   </div>
                 ))}
               </div>
             </div>
 
-            <Button type="submit" className="col-span-2 mt-4">Xác nhận lưu</Button>
+            <Button type="submit" className="w-full col-span-2 mt-4 bg-indigo-600 hover:bg-indigo-700 transition-all font-bold h-12 rounded-xl">
+               {editingRes ? "LƯU THAY ĐỔI" : "KHỞI TẠO QUÁN"}
+            </Button>
           </form>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-
-// Component Card hiển thị cho đẹp
-function RestaurantCard({ res, onEdit, onDelete }: { res: Restaurant, onEdit: () => void, onDelete: () => void }) {
-  return (
-    <div className="bg-card border rounded-2xl p-5 flex flex-col md:flex-row gap-6 hover:shadow-md transition-all group">
-      {/* Avatar giả lập */}
-      <div className="h-24 w-24 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 shrink-0 font-bold text-2xl">
-        {res.fullName.charAt(0)}
-      </div>
-
-      <div className="flex-1 space-y-2">
-        <div className="flex justify-between items-start">
-          <h3 className="text-xl font-bold">{res.fullName}</h3>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="icon" onClick={onEdit} className="text-blue-500"><Pencil className="h-4 w-4" /></Button>
-            <Button variant="ghost" size="icon" onClick={onDelete} className="text-red-500"><Trash2 className="h-4 w-4" /></Button>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1"><MapPin className="h-3 w-3" /> {res.address}</div>
-          <div className="flex items-center gap-1"><Phone className="h-3 w-3" /> {res.phoneNumber}</div>
-          <div className="flex items-center gap-1"><Clock className="h-3 w-3" /> {res.openingHours}</div>
-        </div>
-
-        {/* Render danh sách món ăn đang có */}
-        <div className="pt-2 flex flex-wrap gap-2">
-          {res.foodIds.length > 0 ? res.foodIds.map(fid => {
-            const food = MOCK_FOODS.find(f => f.id === fid);
-            return <Badge key={fid} variant="secondary" className="bg-primary/5 text-primary border-primary/10">{food?.name}</Badge>
-          }) : <span className="text-xs italic text-muted-foreground">Chưa có món nào được gán</span>}
-        </div>
-      </div>
     </div>
   );
 }

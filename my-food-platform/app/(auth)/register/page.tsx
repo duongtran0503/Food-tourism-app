@@ -1,12 +1,14 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import api from "@/lib/axios";
 import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   Store, ArrowRight, User, Mail, ShieldCheck, 
-  Phone, Lock, ImagePlus, Camera 
+  Phone, Lock 
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,11 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { registerSchema, type RegisterFormValues } from "@/lib/zod-schemas";
+import { toast } from "sonner"; // Hoặc alert nếu Lợi chưa cài sonner
 
 export default function RegisterPage() {
-  const [preview, setPreview] = useState<string | null>(null);
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -40,12 +43,28 @@ export default function RegisterPage() {
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setPreview(reader.result as string);
-      reader.readAsDataURL(file);
+  const onSubmit = async (values: RegisterFormValues) => {
+    setLoading(true);
+    try {
+      // Vì không còn avatar, ta gửi JSON thuần cho nhanh gọn
+      const response = await api.post("/auth/register", {
+        fullName: values.fullName,
+        email: values.email,
+        phoneNumber: values.phoneNumber,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
+        role: values.role,
+      });
+
+      if (response.status === 201 || response.status === 200) {
+        toast.success("Chúc mừng Lợi! Bạn đã tạo tài khoản thành công 🎉");
+        router.push("/login"); 
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || "Đã có lỗi xảy ra, vui lòng thử lại.";
+      toast.error(Array.isArray(errorMsg) ? errorMsg[0] : errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,34 +81,8 @@ export default function RegisterPage() {
 
         <div className="bg-card/50 backdrop-blur-md border border-border p-8 rounded-3xl shadow-2xl">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit((v) => console.log(v))} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               
-              {/* PHẦN CHỌN AVATAR */}
-              <div className="flex flex-col items-center justify-center space-y-3">
-                <div className="relative group">
-                  <Avatar className="h-24 w-24 border-2 border-primary/20 p-1">
-                    <AvatarImage src={preview || ""} />
-                    <AvatarFallback className="bg-muted">
-                      <User className="h-10 w-10 text-muted-foreground" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <label 
-                    htmlFor="avatar-upload" 
-                    className="absolute bottom-0 right-0 p-1.5 bg-primary text-white rounded-full cursor-pointer hover:scale-110 transition-transform shadow-lg"
-                  >
-                    <Camera className="h-4 w-4" />
-                    <input 
-                      id="avatar-upload" 
-                      type="file" 
-                      className="hidden" 
-                      accept="image/*"
-                      onChange={handleImageChange}
-                    />
-                  </label>
-                </div>
-                <p className="text-xs text-muted-foreground">Ảnh đại diện (Tùy chọn)</p>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Full Name */}
                 <FormField control={form.control} name="fullName" render={({ field }) => (
@@ -181,8 +174,13 @@ export default function RegisterPage() {
                 )} />
               </div>
 
-              <Button type="submit" className="w-full h-12 text-lg group bg-primary hover:brightness-110 shadow-lg shadow-primary/20">
-                Đăng ký ngay <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              <Button 
+                type="submit" 
+                disabled={loading}
+                className="w-full h-12 text-lg group bg-primary hover:brightness-110 shadow-lg shadow-primary/20"
+              >
+                {loading ? "Đang xử lý..." : "Đăng ký ngay"} 
+                {!loading && <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />}
               </Button>
             </form>
           </Form>

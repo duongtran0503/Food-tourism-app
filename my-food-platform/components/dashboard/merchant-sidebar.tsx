@@ -3,15 +3,12 @@
 import * as React from "react";
 import {
   LayoutDashboard,
-  Utensils,
-  UtensilsCrossed, // Thêm icon này cho Foods
+  UtensilsCrossed,
   MapPin,
   Music,
-  ClipboardList,
-  Settings,
   LogOut,
   Store,
-  MessageSquare,
+  Tags,
 } from "lucide-react";
 
 import {
@@ -26,7 +23,6 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -37,19 +33,14 @@ const merchantNavItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "Quản lý món ăn", // Mục Foods mới thêm vào
+    title: "Danh mục món ăn",
+    url: "/merchant/categories",
+    icon: Tags,
+  },
+  {
+    title: "Quản lý món ăn",
     url: "/merchant/foods",
     icon: UtensilsCrossed,
-  },
-  {
-    title: "Thực đơn hiển thị",
-    url: "/merchant/menu",
-    icon: Utensils,
-  },
-  {
-    title: "Đơn hàng mới",
-    url: "/merchant/orders",
-    icon: ClipboardList,
   },
   {
     title: "Tọa độ & GPS",
@@ -60,19 +51,6 @@ const merchantNavItems = [
     title: "Audio thuyết minh",
     url: "/merchant/audio",
     icon: Music,
-  },
-];
-
-const supportItems = [
-  {
-    title: "Phản hồi khách",
-    url: "/merchant/reviews",
-    icon: MessageSquare,
-  },
-  {
-    title: "Cài đặt cửa hàng",
-    url: "/merchant/settings",
-    icon: Settings,
   },
 ];
 
@@ -93,8 +71,8 @@ export function MerchantSidebar() {
         </Link>
       </SidebarHeader>
 
-      <SidebarContent>
-        {/* Nhóm Menu Vận hành */}
+      <SidebarContent className="scroll-smooth">
+        {/* Nhóm Menu Vận hành duy nhất */}
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
             Vận hành hệ thống
@@ -118,32 +96,6 @@ export function MerchantSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
-        </SidebarGroup>
-
-        <Separator className="mx-4 my-2 opacity-50" />
-
-        {/* Nhóm Hỗ trợ */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-            Khách hàng & Hỗ trợ
-          </SidebarGroupLabel>
-          <SidebarMenu>
-            {supportItems.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname === item.url}
-                  tooltip={item.title}
-                  className="h-11 transition-all hover:bg-orange-500/10 hover:text-orange-600"
-                >
-                  <Link href={item.url} className="flex items-center gap-3">
-                    <item.icon className="h-5 w-5" />
-                    <span className="font-medium">{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
 
