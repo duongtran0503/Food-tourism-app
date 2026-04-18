@@ -1,31 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserService } from "@/lib/user-service"; // ĐÃ FIX: Trỏ đúng file user-service
+import { StaffService } from "@/lib/staff-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Loader2, Plus, Pencil, Trash2, Users, Mail, Phone, ShieldCheck, Search, UserCircle, Store, Lock 
+  Loader2, Plus, Pencil, Trash2, Mail, Phone, ShieldCheck, Search, Store, Lock 
 } from "lucide-react";
 import { toast } from "sonner";
 
-export default function UserManagementPage() {
+export default function StaffManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
+  
+  // State phục vụ thanh tìm kiếm
   const [searchTerm, setSearchTerm] = useState("");
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const res = await UserService.getAll();
+      const res = await StaffService.getAll();
+      // Vì Backend đã gom gọn meta và items, ta lấy đúng mảng items
       setUsers(res.data.data.items || []);
     } catch (error) {
-      toast.error("Không thể tải danh sách người dùng");
+      toast.error("Không thể tải danh sách nhân sự");
     } finally {
       setLoading(false);
     }
@@ -36,7 +39,7 @@ export default function UserManagementPage() {
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
     const payload: any = {
       fullName: formData.get("fullName"),
       phoneNumber: formData.get("phoneNumber"),
@@ -54,11 +57,11 @@ export default function UserManagementPage() {
 
     try {
       if (editingUser) {
-        await UserService.update(editingUser.id, payload);
+        await StaffService.update(editingUser.id, payload);
         toast.success("Cập nhật thông tin thành công");
       } else {
-        await UserService.create(payload);
-        toast.success("Đã tạo người dùng mới thành công");
+        await StaffService.create(payload);
+        toast.success("Đã cấp tài khoản mới thành công");
       }
       setIsOpen(false);
       loadData();
@@ -69,24 +72,18 @@ export default function UserManagementPage() {
   };
 
   const renderRoleBadge = (role: string) => {
-    switch (role) {
-      case "ADMIN":
-        return <Badge className="bg-red-100 text-red-700 border-none hover:bg-red-100"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>;
-      case "STAFF":
-        return <Badge className="bg-orange-100 text-orange-700 border-none hover:bg-orange-100"><Store className="w-3 h-3 mr-1" /> Chủ quán ăn</Badge>;
-      case "USER":
-      default:
-        return <Badge className="bg-blue-100 text-blue-700 border-none hover:bg-blue-100"><UserCircle className="w-3 h-3 mr-1" /> Khách du lịch</Badge>;
+    const currentRole = role?.toUpperCase();
+    if (currentRole === "ADMIN") {
+      return <Badge className="bg-red-100 text-red-700 border-none hover:bg-red-100"><ShieldCheck className="w-3 h-3 mr-1" /> Admin</Badge>;
     }
+    return <Badge className="bg-orange-100 text-orange-700 border-none hover:bg-orange-100"><Store className="w-3 h-3 mr-1" /> Chủ quán ăn</Badge>;
   };
 
+  // LOGIC LỌC: Kết hợp tìm kiếm (Data đã được lọc ADMIN/STAFF từ backend nên chỉ cần lọc text)
   const filteredUsers = users.filter(user => {
-    const isCustomer = user.role === "USER";
-    const matchesSearch = 
-      user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.phoneNumber?.includes(searchTerm);
-    return isCustomer && matchesSearch;
+    return user.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           user.phoneNumber?.includes(searchTerm);
   });
 
   return (
@@ -94,12 +91,12 @@ export default function UserManagementPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
-            <Users className="text-indigo-600" /> Quản trị Người dùng
+            <ShieldCheck className="text-indigo-600" /> Quản trị Nhân sự & Đối tác
           </h1>
-          <p className="text-sm text-muted-foreground italic">Quản lý toàn bộ Khách du lịch, Chủ quán và Admin hệ thống</p>
+          <p className="text-sm text-muted-foreground italic">Quản lý tài khoản Chủ quán ăn và Quản trị viên hệ thống</p>
         </div>
         <Button onClick={() => { setEditingUser(null); setIsOpen(true); }} className="bg-indigo-600 hover:bg-indigo-700">
-          <Plus className="mr-2 h-4 w-4" /> Thêm người dùng
+          <Plus className="mr-2 h-4 w-4" /> Cấp tài khoản
         </Button>
       </div>
 
@@ -107,8 +104,8 @@ export default function UserManagementPage() {
         <div className="p-4 border-b flex items-center gap-2">
           <Search className="h-4 w-4 text-slate-400" />
           <Input 
-            placeholder="Tìm kiếm theo tên, email hoặc SĐT..." 
-            className="max-w-xs border-none shadow-none focus-visible:ring-0" 
+            placeholder="Tìm theo tên, email, SĐT..." 
+            className="max-w-xs border-none shadow-none focus-visible:ring-0"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -127,7 +124,7 @@ export default function UserManagementPage() {
             {loading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-indigo-500" /></TableCell></TableRow>
             ) : filteredUsers.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">Không tìm thấy người dùng nào</TableCell></TableRow>
+              <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">Chưa có nhân sự hoặc đối tác nào</TableCell></TableRow>
             ) : filteredUsers.map((user) => (
               <TableRow key={user.id} className="hover:bg-slate-50 transition-colors">
                 <TableCell>
@@ -142,7 +139,15 @@ export default function UserManagementPage() {
                   <Button variant="ghost" size="icon" onClick={() => { setEditingUser(user); setIsOpen(true); }}>
                     <Pencil className="h-4 w-4 text-blue-500" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => { if(confirm("Xóa vĩnh viễn tài khoản này?")) UserService.delete(user.id).then(() => loadData()); }}>
+                  <Button variant="ghost" size="icon" onClick={() => { 
+                    if(confirm("Xóa vĩnh viễn tài khoản này?")) 
+                      StaffService.delete(user.id).then(() => {
+                        toast.success("Đã xóa tài khoản");
+                        loadData();
+                      }).catch((err) => {
+                        toast.error(err.response?.data?.message || "Không thể xóa tài khoản");
+                      }); 
+                  }}>
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
                 </TableCell>
@@ -157,7 +162,7 @@ export default function UserManagementPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
                {editingUser ? <Pencil className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-               {editingUser ? "Cập nhật tài khoản" : "Cấp tài khoản mới"}
+               {editingUser ? "Cập nhật tài khoản" : "Cấp tài khoản nội bộ/đối tác"}
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 pt-4">
@@ -168,7 +173,7 @@ export default function UserManagementPage() {
             
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Email định danh</label>
-              <Input name="email" type="email" defaultValue={editingUser?.email} required placeholder="user@example.com" disabled={!!editingUser} />
+              <Input name="email" type="email" defaultValue={editingUser?.email} required placeholder="admin@example.com" disabled={!!editingUser} />
             </div>
 
             <div className="space-y-1.5">
@@ -176,6 +181,7 @@ export default function UserManagementPage() {
               <Input 
                 name="phoneNumber" 
                 defaultValue={editingUser?.phoneNumber} 
+                required 
                 placeholder="0988777666" 
                 pattern="[0-9]{10}" 
                 title="Vui lòng nhập đúng 10 chữ số"
@@ -201,11 +207,11 @@ export default function UserManagementPage() {
               <label className="text-sm font-medium">Vai trò hệ thống</label>
               <select 
                 name="role" 
-                defaultValue={editingUser?.role || "USER"}
+                defaultValue={editingUser?.role || "STAFF"}
                 className="w-full p-2 border rounded-md text-sm bg-white outline-none focus:ring-2 focus:ring-indigo-500"
               >
-                <option value="USER">USER (Khách du lịch)</option>
                 <option value="STAFF">STAFF (Chủ quán ăn)</option>
+                <option value="ADMIN">ADMIN (Quản trị viên)</option>
               </select>
             </div>
 

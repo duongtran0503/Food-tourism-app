@@ -1,18 +1,24 @@
 import api from "@/lib/axios";
 
 export const UserService = {
-  // Lấy danh sách toàn bộ người dùng (items, meta)
-  getAll: (params?: any) => api.get("/staffs", { params }),
 
-  // Xem chi tiết một người dùng
-  getById: (id: string) => api.get(`/staffs/${id}`),
+  getAll: async (params?: any) => {
+    return await api.get("/users", { params });
+  },
 
-  // Khởi tạo tài khoản mới
-  create: (data: any) => api.post("/staffs", data),
+  getById: async (id: string) => {
+    return await api.get(`/users/${id}`);
+  },
 
-  // Cập nhật thông tin
-  update: (id: string, data: any) => api.patch(`/staffs/${id}`, data),
+  create: async (data: any) => {
+    return await api.post("/users", data);
+  },
 
-  // Xóa vĩnh viễn tài khoản
-  delete: (id: string) => api.delete(`/staffs/${id}`),
+  update: async (id: string, data: any) => {
+    return await api.patch(`/users/${id}`, data);
+  },
+
+  delete: async (id: string) => {
+    return await api.delete(`/users/${id}`);
+  }
 };

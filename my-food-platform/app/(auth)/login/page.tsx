@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Mail, Lock, LogIn, UtensilsCrossed, ChevronLeft, Loader2 } from "lucide-react";
-import api from "@/lib/axios"; // Đảm bảo Lợi đã cấu hình axios instance
-import { toast } from "sonner"; // Thư viện thông báo
+import api from "@/lib/axios";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,10 +42,9 @@ export default function LoginPage() {
 
       toast.success(`Chào Admin ${userInfo.fullName}!`);
 
-      // Điều hướng theo Role (đã tách ADMIN và MERCHANT)
       if (userInfo.role === "ADMIN") {
         router.push("/admin/users");
-      } else if (userInfo.role === "MERCHANT") {
+      } else if (userInfo.role === "STAFF") {
         router.push("/merchant");
       } else {
         router.push("/");

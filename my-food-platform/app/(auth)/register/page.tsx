@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { registerSchema, type RegisterFormValues } from "@/lib/zod-schemas";
-import { toast } from "sonner"; // Hoặc alert nếu Lợi chưa cài sonner
+import { toast } from "sonner";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -39,7 +39,7 @@ export default function RegisterPage() {
       phoneNumber: "", 
       password: "", 
       confirmPassword: "",
-      role: "CUSTOMER"
+      role: "USER"
     },
   });
 
@@ -137,8 +137,8 @@ export default function RegisterPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="CUSTOMER">Khách du lịch</SelectItem>
-                        <SelectItem value="MERCHANT">Chủ quán ăn (Đối tác)</SelectItem>
+                        <SelectItem value="USER">Khách du lịch</SelectItem>
+                        <SelectItem value="STAFF">Chủ quán ăn (Đối tác)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

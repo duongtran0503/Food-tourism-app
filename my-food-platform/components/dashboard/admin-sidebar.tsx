@@ -18,6 +18,7 @@ import { usePathname, useRouter } from "next/navigation";
 const adminNavItems = [
   { title: "Tổng quan", url: "/admin", icon: LayoutDashboard },
   { title: "Nhà hàng", url: "/admin/restaurants", icon: Store },
+  { title: "Nhân viên", url: "/admin/staffs", icon: Users },
   { title: "Người dùng", url: "/admin/users", icon: Users },
 ];
 

@@ -18,7 +18,6 @@ export default function AudioPage() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // 🔄 Tải danh sách audio từ Server
   const loadData = async () => {
     setLoading(true);
     try {
@@ -33,12 +32,11 @@ export default function AudioPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // ⬆️ Xử lý tải file lên
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) { // Giới hạn 10MB
+    if (file.size > 10 * 1024 * 1024) { 
       return toast.error("File quá lớn! Vui lòng chọn file dưới 10MB.");
     }
 
@@ -51,7 +49,6 @@ export default function AudioPage() {
       });
       
       toast.success("Tải lên thành công!");
-      // Sau khi upload xong, bạn có thể gọi API lưu metadata vào DB tại đây
       loadData(); 
     } catch (error) {
       toast.error("Lỗi khi tải file lên hệ thống");
@@ -63,14 +60,12 @@ export default function AudioPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 p-6">
-      {/* HEADER */}
       <div>
         <h2 className="text-3xl font-black tracking-tighter text-slate-800 uppercase italic">Thuyết minh âm thanh</h2>
         <p className="text-muted-foreground text-sm font-medium">Quản lý các đoạn âm thanh tự động phát trên hệ thống Food Tour.</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {/* CỘT TRÁI: UPLOAD (INDIGO STYLE) */}
         <Card className="md:col-span-1 border-none shadow-xl bg-indigo-600 text-white rounded-[2.5rem] overflow-hidden">
           <CardHeader>
             <CardTitle className="text-lg font-bold">Tải lên Audio mới</CardTitle>
@@ -110,7 +105,6 @@ export default function AudioPage() {
           </CardContent>
         </Card>
 
-        {/* CỘT PHẢI: DANH SÁCH AUDIO */}
         <Card className="md:col-span-2 border-none shadow-sm bg-white rounded-[2.5rem]">
           <CardHeader>
             <CardTitle className="text-lg font-bold text-slate-700">Thư viện của bạn</CardTitle>
@@ -160,7 +154,6 @@ export default function AudioPage() {
         </Card>
       </div>
 
-      {/* MẸO CHO MERCHANT (INDIGO STYLE) */}
       <div className="bg-indigo-50 p-5 rounded-[2rem] border border-indigo-100 flex items-start gap-4">
         <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-indigo-200 shadow-lg">
           <ShieldCheck className="h-5 w-5" />

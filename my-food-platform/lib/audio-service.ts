@@ -1,10 +1,8 @@
 import api from "@/lib/axios";
 
 export const AudioService = {
-  // 🎙️ Lấy danh sách audio của Merchant
   getAll: () => api.get("/audios"), 
   
-  // ⬆️ Tải file lên Cloudinary thông qua Backend
   upload: (file: File, onProgress: (percent: number) => void) => {
     const formData = new FormData();
     formData.append("file", file);
@@ -17,6 +15,5 @@ export const AudioService = {
     });
   },
 
-  // 🗑️ Xóa audio
   delete: (id: string) => api.delete(`/audios/${id}`),
 };
