@@ -37,7 +37,8 @@ export default function CategoryManagementPage() {
     setLoading(true);
     try {
       const res = await CategoryService.getAll();
-      setCategories(res.data.data.items || []); 
+      // Truy cập đúng cấu trúc data từ backend trả về
+      setCategories(res.data?.data?.items || res.data?.items || []); 
     } catch (error) {
       toast.error("Không thể kết nối dữ liệu danh mục");
     } finally {
@@ -51,12 +52,21 @@ export default function CategoryManagementPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const nameValue = formData.get("name") as string;
+    const iconValue = formData.get("icon") as string;
 
-    const payload = {
-      name: nameValue,
+    // SỬA ĐỔI TẠI ĐÂY: Đóng gói payload đúng chuẩn Backend yêu cầu
+    const payload: any = {
+      // Backend yêu cầu name là Object { vi: string, en?: string... }
+      name: { 
+        vi: nameValue 
+      },
       slug: generateSlug(nameValue),
-      icon: formData.get("icon") || "",
     };
+
+    // Chỉ gửi icon nếu có giá trị để tránh lỗi @IsUrl khi gửi chuỗi rỗng
+    if (iconValue && iconValue.trim() !== "") {
+      payload.icon = iconValue;
+    }
 
     try {
       if (editingCat?.id || editingCat?._id) {
@@ -69,7 +79,9 @@ export default function CategoryManagementPage() {
       setIsOpen(false);
       loadData();
     } catch (error: any) {
-      toast.error("Lỗi khi lưu dữ liệu");
+      // Log chi tiết lỗi từ backend để dễ dàng xử lý (thường là lỗi validation)
+      const errorMsg = error.response?.data?.message || "Lỗi khi lưu dữ liệu";
+      toast.error(Array.isArray(errorMsg) ? errorMsg.join(", ") : errorMsg);
     }
   };
 
@@ -83,6 +95,12 @@ export default function CategoryManagementPage() {
       toast.error("Không thể xóa danh mục này");
     }
   };
+
+  // Lọc dữ liệu tại client cho ô tìm kiếm
+  const filteredCategories = categories.filter(cat => 
+    getLabel(cat.name).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    cat.slug.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -121,13 +139,13 @@ export default function CategoryManagementPage() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-indigo-500" /></TableCell></TableRow>
-            ) : categories.length === 0 ? (
+            ) : filteredCategories.length === 0 ? (
               <TableRow><TableCell colSpan={4} className="text-center py-10 text-slate-400">Chưa có dữ liệu phân loại</TableCell></TableRow>
-            ) : categories.map((cat) => (
+            ) : filteredCategories.map((cat) => (
               <TableRow key={cat.id || cat._id} className="hover:bg-slate-50 transition-colors">
                 <TableCell>
                   <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100 overflow-hidden shadow-inner">
-                    {cat.icon ? <img src={cat.icon} className="h-full w-full object-cover" /> : <ImageIcon className="h-5 w-5 text-indigo-300" />}
+                    {cat.icon ? <img src={cat.icon} className="h-full w-full object-cover" alt="icon" /> : <ImageIcon className="h-5 w-5 text-indigo-300" />}
                   </div>
                 </TableCell>
                 <TableCell className="font-bold text-slate-700">

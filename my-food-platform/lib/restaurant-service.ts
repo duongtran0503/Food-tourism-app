@@ -15,8 +15,17 @@ export const RestaurantService = {
   
   delete: (id: string) => 
     api.delete(`/restaurants/${id}`),
+
+  approve: (id: string, status: 'approved' | 'rejected') => 
+    api.patch(`/restaurants/${id}/approve`, { status }),
+
+  getMyRestaurant: () => api.get("/restaurants/my-restaurant"),
+
+  linkFood: (restaurantId: string, foodIds: string[]) => 
+    api.post(`/restaurants/${restaurantId}/foods`, { foodIds }),
 };
 
 export const FoodService = {
   getAll: () => api.get("/foods"),
 };
+

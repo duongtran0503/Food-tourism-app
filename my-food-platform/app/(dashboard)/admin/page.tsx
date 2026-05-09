@@ -18,7 +18,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
-// Dữ liệu mẫu (Sau này bạn sẽ fetch từ API)
 const stats = [
   { title: "Tổng doanh thu", value: "128,450,000đ", icon: DollarSign, trend: "+12.5%", color: "text-green-600" },
   { title: "Quán ăn đối tác", value: "156", icon: Store, trend: "+4 quán mới", color: "text-blue-600" },
@@ -35,13 +34,10 @@ const pendingRestaurants = [
 export default function AdminDashboard() {
   return (
     <div className="space-y-8">
-      {/* Tiêu đề trang */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Bảng điều hành hệ thống</h1>
         <p className="text-muted-foreground">Chào buổi chiều, Lợi. Đây là những gì đang diễn ra trên hệ thống hôm nay.</p>
       </div>
-
-      {/* Grid thẻ thống kê */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => (
           <Card key={index} className="border-none shadow-sm bg-card/50 backdrop-blur-sm">
@@ -60,14 +56,12 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-7">
-        {/* Biểu đồ giả lập (Chiếm 4 cột) */}
         <Card className="col-span-4 border-none shadow-sm">
           <CardHeader>
             <CardTitle>Biểu đồ tăng trưởng</CardTitle>
             <CardDescription>Thống kê lượng người dùng truy cập trong 7 ngày qua.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] flex items-end justify-between gap-2 px-6">
-            {/* Đây là nơi đặt Recharts. Tạm thời dùng các cột div để minh họa */}
             {[40, 70, 45, 90, 65, 80, 100].map((height, i) => (
               <div 
                 key={i} 
@@ -78,7 +72,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Danh sách chờ duyệt (Chiếm 3 cột) */}
         <Card className="col-span-3 border-none shadow-sm">
           <CardHeader>
             <CardTitle>Phê duyệt đối tác</CardTitle>

@@ -18,7 +18,6 @@ import { usePathname, useRouter } from "next/navigation";
 const adminNavItems = [
   { title: "Tổng quan", url: "/admin", icon: LayoutDashboard },
   { title: "Nhà hàng", url: "/admin/restaurants", icon: Store },
-  { title: "Nhân viên", url: "/admin/staffs", icon: Users },
   { title: "Người dùng", url: "/admin/users", icon: Users },
 ];
 
@@ -48,7 +47,6 @@ export function AdminSidebar() {
 
   return (
     <Sidebar variant="sidebar" collapsible="icon" className="border-r border-slate-100 bg-white">
-      {/* 🔝 HEADER */}
       <SidebarHeader className="h-20 flex items-center justify-center border-b border-slate-50">
         <Link href="/admin" className="flex items-center gap-3 px-2">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 shadow-lg shadow-indigo-100">
@@ -68,7 +66,6 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="px-3 gap-1">
               {adminNavItems.map((item) => {
-                // 🛠️ LOGIC: Fix lỗi Tổng quan luôn active
                 const isActive = item.url === "/admin" 
                   ? pathname === "/admin" 
                   : pathname.startsWith(item.url);
