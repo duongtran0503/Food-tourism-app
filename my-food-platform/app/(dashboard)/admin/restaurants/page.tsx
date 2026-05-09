@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
+import api from "@/lib/axios"; 
 import { RestaurantService, FoodService } from "@/lib/restaurant-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -11,15 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Loader2, Plus, Pencil, Store, MapPin, Search, 
-  CheckCircle2, Ban, Clock, UtensilsCrossed, Phone, Info
+  CheckCircle2, Ban, Clock, UtensilsCrossed, Music,
+  ChevronLeft, ChevronRight // Thêm Icon cho nút chuyển trang
 } from "lucide-react";
 import { toast } from "sonner";
 
-const getLabel = (data: any): string => {
+const getLabel = (data: any, lang = "vi"): string => {
   if (!data) return "";
   if (typeof data === "string") return data;
   if (typeof data === "object" && data !== null) {
-    const val = data.vi || data.en || data.jp || Object.values(data)[0];
+    const val = data[lang] || data.vi || data.en || data.jp || Object.values(data)[0];
     return typeof val === "string" ? val : ""; 
   }
   return String(data);
@@ -29,11 +31,35 @@ export default function AdminRestaurantsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [allFoods, setAllFoods] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // States cho Form và Bộ lọc
   const [isOpen, setIsOpen] = useState(false);
   const [editingRes, setEditingRes] = useState<any | null>(null);
   const [selectedFoodIds, setSelectedFoodIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("ALL");
+  const [formLang, setFormLang] = useState<'vi' | 'en' | 'jp' | 'zh' | 'ru'>('vi');
+
+  // --- STATES CHO PHÂN TRANG ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 7; // Số lượng nhà hàng hiển thị trên 1 trang
+
+  // Ref và State cho tính năng Upload Âm thanh
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false);
+
+  // Khởi tạo state cho dữ liệu form đa ngôn ngữ
+  const initialForm = {
+    name: { vi: "", en: "", jp: "", zh: "", ru: "" },
+    address: { vi: "", en: "", jp: "", zh: "", ru: "" },
+    description: { vi: "", en: "", jp: "", zh: "", ru: "" },
+    openingHours: { vi: "", en: "", jp: "", zh: "", ru: "" },
+    audioUrl: { vi: "", en: "", jp: "", zh: "", ru: "" },
+    phoneNumber: "",
+    location: { lat: 0, lng: 0 },
+    imagesStr: "", 
+  };
+  const [formData, setFormData] = useState<any>(initialForm);
 
   const foodMap = useMemo(() => {
     return new Map(allFoods.map(f => [f.id || f._id, f.name]));
@@ -61,6 +87,11 @@ export default function AdminRestaurantsPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Đưa người dùng về trang 1 nếu họ thay đổi bộ lọc hoặc tìm kiếm
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, activeTab]);
+
   const handleUpdateStatus = async (id: string, newStatus: string) => {
     const isApprove = newStatus === "approved";
     try {
@@ -78,29 +109,96 @@ export default function AdminRestaurantsPage() {
       const data = detail.data?.data || detail.data;
       
       setEditingRes(data);
+      
+      const wrapLang = (val: any) => {
+        if (!val) return { vi: "", en: "", jp: "", zh: "", ru: "" };
+        if (typeof val === 'object') return { ...initialForm.name, ...val };
+        return { ...initialForm.name, vi: val };
+      };
+
+      setFormData({
+        name: wrapLang(data.nameRaw || data.name),
+        address: wrapLang(data.addressRaw || data.address),
+        description: wrapLang(data.descriptionRaw || data.description),
+        openingHours: wrapLang(data.openingHoursRaw || data.openingHours || data.openTime),
+        audioUrl: wrapLang(data.audioUrlRaw || data.audioUrl), 
+        phoneNumber: data.phoneNumber || data.phone || "",
+        location: data.location || { lat: 0, lng: 0 },
+        imagesStr: (data.images || []).join(', '),
+      });
+
       const ids = (data.foods || []).map((f: any) => typeof f === 'string' ? f : (f.id || f._id));
       setSelectedFoodIds(ids);
+      setFormLang('vi'); 
       setIsOpen(true);
     } catch (error) {
       toast.error("Lỗi lấy thông tin chi tiết nhà hàng");
     }
   };
 
+  const handleChange = (field: string, value: any, isMultiLang = false) => {
+    if (isMultiLang) {
+      setFormData((prev: any) => ({
+        ...prev,
+        [field]: { ...prev[field], [formLang]: value }
+      }));
+    } else {
+      setFormData((prev: any) => ({ ...prev, [field]: value }));
+    }
+  };
+
+  const handleLocationChange = (coord: 'lat' | 'lng', value: string) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      location: { ...prev.location, [coord]: Number(value) || 0 }
+    }));
+  };
+
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAudio(true);
+    try {
+      const uploadData = new FormData();
+      uploadData.append('file', file);
+
+      const res = await api.post('/upload/audio', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const uploadedUrl = res.data?.audioUrl || res.data?.data?.audioUrl;
+
+      if (uploadedUrl) {
+        setFormData((prev: any) => ({
+          ...prev,
+          audioUrl: { ...prev.audioUrl, [formLang]: uploadedUrl }
+        }));
+        toast.success(`Tải âm thanh tiếng ${formLang.toUpperCase()} thành công!`);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Lỗi khi tải file âm thanh lên server!");
+    } finally {
+      setIsUploadingAudio(false);
+      if (audioInputRef.current) audioInputRef.current.value = ''; 
+    }
+  };
+
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
     
     const payload: any = {
-      name: { vi: formData.get("name") }, 
-      address: { vi: formData.get("address") },
-      description: { vi: formData.get("description") },
-      openingHours: { vi: formData.get("openingHours") },
-      phoneNumber: formData.get("phoneNumber"),
+      name: formData.name, 
+      address: formData.address,
+      description: formData.description,
+      openingHours: formData.openingHours,
+      audioUrl: formData.audioUrl,
+      phoneNumber: formData.phoneNumber,
       location: {
-        lat: Number(formData.get("lat")),
-        lng: Number(formData.get("lng")),
+        lat: Number(formData.location.lat),
+        lng: Number(formData.location.lng),
       },
-      images: (formData.get("images") as string)?.split(',').map(s => s.trim()).filter(Boolean) || [],
+      images: formData.imagesStr.split(',').map((s: string) => s.trim()).filter(Boolean),
       foods: selectedFoodIds,
     };
 
@@ -133,12 +231,20 @@ export default function AdminRestaurantsPage() {
     }
   };
 
+  // --- LOGIC LỌC VÀ CẮT TRANG ---
   const filteredRestaurants = restaurants.filter(res => {
     const matchesSearch = getLabel(res.name).toLowerCase().includes(searchTerm.toLowerCase()) ||
                           getLabel(res.address).toLowerCase().includes(searchTerm.toLowerCase());
     if (activeTab === "ALL") return matchesSearch;
     return matchesSearch && (res.status === activeTab || (!res.status && activeTab === "pending"));
   });
+
+  const totalPages = Math.ceil(filteredRestaurants.length / itemsPerPage);
+  
+  const paginatedRestaurants = filteredRestaurants.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   return (
     <div className="p-6 space-y-6">
@@ -150,7 +256,12 @@ export default function AdminRestaurantsPage() {
           <p className="text-sm text-muted-foreground italic">Phê duyệt và kiểm soát hệ thống nhà hàng trên sàn Food Tour</p>
         </div>
         <Button 
-          onClick={() => { setEditingRes(null); setSelectedFoodIds([]); setIsOpen(true); }} 
+          onClick={() => { 
+            setEditingRes(null); 
+            setSelectedFoodIds([]); 
+            setFormData(initialForm);
+            setIsOpen(true); 
+          }} 
           className="bg-indigo-600 hover:bg-indigo-700 rounded-xl font-bold uppercase text-xs tracking-wider"
         >
           <Plus className="mr-2 h-4 w-4" /> Thêm nhà hàng
@@ -162,7 +273,7 @@ export default function AdminRestaurantsPage() {
           <TabsList className="bg-slate-100 p-1 rounded-lg">
             <TabsTrigger value="ALL" className="rounded-md px-4 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-indigo-600">TẤT CẢ</TabsTrigger>
             <TabsTrigger value="pending" className="rounded-md px-4 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-amber-600">CHỜ DUYỆT</TabsTrigger>
-            <TabsTrigger value="approved" className="rounded-md px-4 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-600">ĐÃ DUYỆT</TabsTrigger>
+            <TabsTrigger value="approved" className="rounded-md px-4 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-600">Đã DUYỆT</TabsTrigger>
             <TabsTrigger value="rejected" className="rounded-md px-4 font-bold text-xs data-[state=active]:bg-white data-[state=active]:text-rose-600">TỪ CHỐI</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -178,7 +289,7 @@ export default function AdminRestaurantsPage() {
         </div>
       </div>
 
-      <div className="bg-white border rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-white border rounded-xl shadow-sm flex flex-col">
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>
@@ -191,9 +302,9 @@ export default function AdminRestaurantsPage() {
           <TableBody>
             {loading ? (
               <TableRow><TableCell colSpan={4} className="text-center py-12"><Loader2 className="animate-spin mx-auto text-indigo-500" /></TableCell></TableRow>
-            ) : filteredRestaurants.length === 0 ? (
+            ) : paginatedRestaurants.length === 0 ? (
               <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">Không tìm thấy dữ liệu phù hợp</TableCell></TableRow>
-            ) : filteredRestaurants.map((res) => (
+            ) : paginatedRestaurants.map((res) => (
               <TableRow key={res.id || res._id} className="hover:bg-slate-50 transition-colors">
                 <TableCell className="pl-6">
                   <div className="font-bold text-slate-700">{getLabel(res.name)}</div>
@@ -241,10 +352,56 @@ export default function AdminRestaurantsPage() {
             ))}
           </TableBody>
         </Table>
+
+        {/* GIAO DIỆN NÚT CHUYỂN TRANG */}
+        {!loading && filteredRestaurants.length > 0 && (
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
+            <div className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">
+              Đang hiển thị <span className="text-indigo-600 font-bold">{(currentPage - 1) * itemsPerPage + 1}</span> đến <span className="text-indigo-600 font-bold">{Math.min(currentPage * itemsPerPage, filteredRestaurants.length)}</span> / {filteredRestaurants.length} kết quả
+            </div>
+            
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-lg border-slate-200 text-slate-500 hover:text-indigo-600"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              {Array.from({ length: totalPages }).map((_, i) => (
+                <Button
+                  key={i}
+                  variant={currentPage === i + 1 ? "default" : "outline"}
+                  className={`h-8 w-8 rounded-lg text-xs font-bold transition-all ${
+                    currentPage === i + 1 
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 border-none" 
+                    : "border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600"
+                  }`}
+                  onClick={() => setCurrentPage(i + 1)}
+                >
+                  {i + 1}
+                </Button>
+              ))}
+
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-lg border-slate-200 text-slate-500 hover:text-indigo-600"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto rounded-3xl">
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto rounded-3xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 font-black uppercase text-xl italic tracking-tighter">
               {editingRes ? <Pencil className="w-5 h-5 text-indigo-600" /> : <Plus className="w-5 h-5 text-indigo-600" />}
@@ -252,45 +409,113 @@ export default function AdminRestaurantsPage() {
             </DialogTitle>
           </DialogHeader>
           
-          <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 pt-4">
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-sm font-bold text-slate-600">Tên nhà hàng</label>
-              <Input name="name" defaultValue={getLabel(editingRes?.name)} required className="rounded-xl" />
+          <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 pt-2">
+            
+            <div className="col-span-2 flex flex-wrap bg-slate-100 p-1 rounded-xl w-fit">
+              {['vi', 'en', 'jp', 'zh', 'ru'].map((l) => (
+                <button 
+                  key={l} type="button"
+                  onClick={() => setFormLang(l as any)} 
+                  className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all uppercase ${formLang === l ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-1.5 col-span-2 md:col-span-1">
+              <label className="text-sm font-bold text-slate-600">Tên nhà hàng ({formLang}) {formLang === 'vi' && '*'}</label>
+              <Input value={formData.name[formLang] || ''} onChange={(e) => handleChange('name', e.target.value, true)} required={formLang === 'vi'} className="rounded-xl" />
             </div>
             
             <div className="space-y-1.5 col-span-2 md:col-span-1">
-              <label className="text-sm font-bold text-slate-600">Số điện thoại</label>
-              <Input name="phoneNumber" defaultValue={editingRes?.phoneNumber || editingRes?.phone} required className="rounded-xl" />
+              <label className="text-sm font-bold text-slate-600">Giờ hoạt động ({formLang})</label>
+              <Input value={formData.openingHours[formLang] || ''} onChange={(e) => handleChange('openingHours', e.target.value, true)} placeholder="08:00 - 22:00" className="rounded-xl" />
             </div>
             
+            <div className="space-y-1.5 col-span-2">
+              <label className="text-sm font-bold text-slate-600">Địa chỉ chi tiết ({formLang}) {formLang === 'vi' && '*'}</label>
+              <Input value={formData.address[formLang] || ''} onChange={(e) => handleChange('address', e.target.value, true)} required={formLang === 'vi'} className="rounded-xl" />
+            </div>
+
+            <div className="space-y-1.5 col-span-2">
+              <label className="text-sm font-bold text-slate-600">Mô tả ngắn ({formLang})</label>
+              <textarea value={formData.description[formLang] || ''} onChange={(e) => handleChange('description', e.target.value, true)} className="w-full min-h-[80px] p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            </div>
+
+            <div className="space-y-2 col-span-2 pt-2 border-t border-slate-100">
+              <label className="text-sm font-bold text-slate-600">
+                Âm thanh giới thiệu ({formLang.toUpperCase()})
+              </label>
+              
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Music className="absolute left-4 top-2.5 text-slate-400" size={18} />
+                  <Input 
+                    value={formData.audioUrl?.[formLang] || ''} 
+                    onChange={(e) => handleChange('audioUrl', e.target.value, true)}
+                    className="pl-12 rounded-xl"
+                    placeholder={`Dán link mp3 tiếng ${formLang.toUpperCase()}...`}
+                  />
+                </div>
+
+                <input 
+                  type="file" 
+                  ref={audioInputRef} 
+                  onChange={handleAudioUpload}
+                  accept="audio/mpeg, audio/wav, audio/ogg" 
+                  className="hidden" 
+                />
+
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  disabled={isUploadingAudio}
+                  onClick={() => audioInputRef.current?.click()}
+                  className="px-5 font-bold rounded-xl border-slate-200 text-slate-600 shrink-0"
+                >
+                  {isUploadingAudio ? (
+                    <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Đang tải...</>
+                  ) : (
+                    "Tải file lên"
+                  )}
+                </Button>
+              </div>
+              
+              {formData.audioUrl?.[formLang] && (
+                <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-2">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Nghe thử ({formLang.toUpperCase()}):</p>
+                  <audio controls className="w-full h-10 outline-none" key={formData.audioUrl[formLang]}>
+                    <source src={formData.audioUrl[formLang]} type="audio/mpeg" />
+                    Trình duyệt không hỗ trợ thẻ audio.
+                  </audio>
+                </div>
+              )}
+            </div>
+
+            <div className="col-span-2 my-2 border-t border-slate-100" />
+
             <div className="space-y-1.5 col-span-2 md:col-span-1">
-              <label className="text-sm font-bold text-slate-600">Giờ hoạt động</label>
-              <Input name="openingHours" defaultValue={getLabel(editingRes?.openingHours || editingRes?.openTime)} placeholder="08:00 - 22:00" className="rounded-xl" />
-            </div>
-            
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-sm font-bold text-slate-600">Địa chỉ chi tiết</label>
-              <Input name="address" defaultValue={getLabel(editingRes?.address)} required className="rounded-xl" />
+              <label className="text-sm font-bold text-slate-600">Số điện thoại *</label>
+              <Input value={formData.phoneNumber} onChange={(e) => handleChange('phoneNumber', e.target.value)} required className="rounded-xl" />
             </div>
 
-            <div className="space-y-1.5 col-span-2">
-              <label className="text-sm font-bold text-slate-600">Mô tả ngắn</label>
-              <textarea name="description" defaultValue={getLabel(editingRes?.description)} className="w-full min-h-[80px] p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+            <div className="space-y-1.5 col-span-2 md:col-span-1">
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-600">Vĩ độ (Lat)</label>
-              <Input name="lat" type="number" step="any" defaultValue={editingRes?.location?.lat} required className="rounded-xl" />
+            <div className="space-y-1.5 col-span-1">
+              <label className="text-sm font-bold text-slate-600">Vĩ độ (Lat) *</label>
+              <Input type="number" step="any" value={formData.location.lat} onChange={(e) => handleLocationChange('lat', e.target.value)} required className="rounded-xl" />
             </div>
             
-            <div className="space-y-1.5">
-              <label className="text-sm font-bold text-slate-600">Kinh độ (Lng)</label>
-              <Input name="lng" type="number" step="any" defaultValue={editingRes?.location?.lng} required className="rounded-xl" />
+            <div className="space-y-1.5 col-span-1">
+              <label className="text-sm font-bold text-slate-600">Kinh độ (Lng) *</label>
+              <Input type="number" step="any" value={formData.location.lng} onChange={(e) => handleLocationChange('lng', e.target.value)} required className="rounded-xl" />
             </div>
 
             <div className="space-y-1.5 col-span-2">
               <label className="text-sm font-bold text-slate-600">URL Hình ảnh (phân cách bằng dấu phẩy)</label>
-              <Input name="images" defaultValue={editingRes?.images?.join(', ')} className="rounded-xl" placeholder="https://url1.jpg, https://url2.jpg" />
+              <Input value={formData.imagesStr} onChange={(e) => handleChange('imagesStr', e.target.value)} className="rounded-xl" placeholder="https://url1.jpg, https://url2.jpg" />
             </div>
 
             <div className="col-span-2 space-y-2 mt-2">
