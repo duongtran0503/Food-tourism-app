@@ -6,14 +6,15 @@ import { RestaurantService, FoodService } from "@/lib/restaurant-service";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+// 👇 Đã import thêm DialogDescription
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Loader2, Plus, Pencil, Store, MapPin, Search, 
   CheckCircle2, Ban, Clock, UtensilsCrossed, Music,
-  ChevronLeft, ChevronRight // Thêm Icon cho nút chuyển trang
+  ChevronLeft, ChevronRight
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,9 +41,9 @@ export default function AdminRestaurantsPage() {
   const [activeTab, setActiveTab] = useState("ALL");
   const [formLang, setFormLang] = useState<'vi' | 'en' | 'jp' | 'zh' | 'ru'>('vi');
 
-  // --- STATES CHO PHÂN TRANG ---
+  // States cho Phân trang
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 7; // Số lượng nhà hàng hiển thị trên 1 trang
+  const itemsPerPage = 7; 
 
   // Ref và State cho tính năng Upload Âm thanh
   const audioInputRef = useRef<HTMLInputElement>(null);
@@ -69,8 +70,9 @@ export default function AdminRestaurantsPage() {
     setLoading(true);
     try {
       const [resData, foodData] = await Promise.all([
-        RestaurantService.getAll(),
-        FoodService.getAll()
+        // Truyền thêm { limit: 1000 } để lấy toàn bộ dữ liệu, phục vụ cho phân trang client
+        RestaurantService.getAll({ limit: 1000 }),
+        FoodService.getAll({ limit: 1000 }) 
       ]);
       
       const resItems = resData.data?.data?.items || resData.data?.items || [];
@@ -87,7 +89,6 @@ export default function AdminRestaurantsPage() {
 
   useEffect(() => { loadData(); }, []);
 
-  // Đưa người dùng về trang 1 nếu họ thay đổi bộ lọc hoặc tìm kiếm
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, activeTab]);
@@ -127,7 +128,10 @@ export default function AdminRestaurantsPage() {
         imagesStr: (data.images || []).join(', '),
       });
 
-      const ids = (data.foods || []).map((f: any) => typeof f === 'string' ? f : (f.id || f._id));
+      // Ép kiểu tất cả về String để map vào selectedFoodIds
+      const sourceFoods = (data.foods && data.foods.length > 0) ? data.foods : (res.foods || []);
+      const ids = sourceFoods.map((f: any) => String(typeof f === 'string' ? f : (f.id || f._id)));
+      
       setSelectedFoodIds(ids);
       setFormLang('vi'); 
       setIsOpen(true);
@@ -231,7 +235,6 @@ export default function AdminRestaurantsPage() {
     }
   };
 
-  // --- LOGIC LỌC VÀ CẮT TRANG ---
   const filteredRestaurants = restaurants.filter(res => {
     const matchesSearch = getLabel(res.name).toLowerCase().includes(searchTerm.toLowerCase()) ||
                           getLabel(res.address).toLowerCase().includes(searchTerm.toLowerCase());
@@ -407,6 +410,13 @@ export default function AdminRestaurantsPage() {
               {editingRes ? <Pencil className="w-5 h-5 text-indigo-600" /> : <Plus className="w-5 h-5 text-indigo-600" />}
               {editingRes ? "Cập nhật đối tác" : "Khởi tạo nhà hàng mới"}
             </DialogTitle>
+            
+            {/* 👇 Đây là phần fix lỗi Warning của Radix UI 👇 */}
+            <DialogDescription className="sr-only">
+              Biểu mẫu cập nhật thông tin chi tiết và danh sách đặc sản liên kết của nhà hàng.
+            </DialogDescription>
+            {/* 👆 ========================================== 👆 */}
+            
           </DialogHeader>
           
           <form onSubmit={handleSave} className="grid grid-cols-2 gap-4 pt-2">
@@ -518,24 +528,54 @@ export default function AdminRestaurantsPage() {
               <Input value={formData.imagesStr} onChange={(e) => handleChange('imagesStr', e.target.value)} className="rounded-xl" placeholder="https://url1.jpg, https://url2.jpg" />
             </div>
 
-            <div className="col-span-2 space-y-2 mt-2">
-              <label className="text-xs font-bold text-indigo-600 uppercase flex items-center gap-1">
-                <UtensilsCrossed size={14} /> Đặc sản liên kết
-              </label>
-              <div className="grid grid-cols-2 gap-2 p-3 border border-slate-100 rounded-xl bg-slate-50/50 max-h-40 overflow-y-auto">
-                {allFoods.map((food) => (
-                  <div key={food.id || food._id} className="flex items-center space-x-2 bg-white p-2 px-3 rounded-lg border border-slate-100 shadow-sm">
-                    <Checkbox 
-                      id={food.id || food._id} 
-                      checked={selectedFoodIds.includes(food.id || food._id)}
-                      onCheckedChange={(checked) => {
-                        const id = food.id || food._id;
-                        setSelectedFoodIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id));
-                      }}
-                    />
-                    <label htmlFor={food.id || food._id} className="cursor-pointer font-medium text-[11px] truncate text-slate-600">{getLabel(food.name)}</label>
+            <div className="col-span-2 space-y-3 mt-4 border-t pt-4">
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-indigo-600 uppercase flex items-center gap-1">
+                  <UtensilsCrossed size={14} /> Món ăn đang bán tại quán
+                </label>
+                <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-500 bg-indigo-50/50">
+                  Tổng cộng: {selectedFoodIds.length} món
+                </Badge>
+              </div>
+
+              <div className="flex flex-wrap gap-2 p-3 border border-slate-100 rounded-xl bg-slate-50/50 min-h-[60px] max-h-40 overflow-y-auto">
+                {allFoods
+                  // CHỈ LỌC NHỮNG MÓN ĐÃ ĐƯỢC LIÊN KẾT VỚI NHÀ HÀNG (Có ID nằm trong selectedFoodIds)
+                  .filter((food) => selectedFoodIds.includes(String(food.id || food._id)))
+                  .map((food) => {
+                    const currentFoodId = String(food.id || food._id);
+                    
+                    return (
+                      <Badge key={currentFoodId} className="bg-white text-slate-700 border border-slate-200 shadow-sm px-3 py-1.5 flex items-center gap-1.5 text-xs font-medium hover:bg-slate-50">
+                        {getLabel(food.name)}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Chức năng: Xóa món ăn khỏi quán nếu Admin muốn
+                            setSelectedFoodIds(prev => prev.filter(i => i !== currentFoodId));
+                          }}
+                          className="text-slate-400 hover:text-rose-500 transition-colors ml-1"
+                          title="Gỡ món ăn này"
+                        >
+                          ✕
+                        </button>
+                      </Badge>
+                    );
+                })}
+
+                {/* Thông báo nếu đang tạo mới nhà hàng */}
+                {!editingRes && (
+                  <div className="w-full text-center text-xs text-slate-400 italic py-2">
+                    Nhà hàng mới khởi tạo sẽ chưa có món ăn nào.
                   </div>
-                ))}
+                )}
+
+                {/* Thông báo nếu quán cũ nhưng không có món nào */}
+                {editingRes && selectedFoodIds.length === 0 && (
+                  <div className="w-full text-center text-xs text-slate-400 italic py-2">
+                    Nhà hàng này hiện chưa có đặc sản nào.
+                  </div>
+                )}
               </div>
             </div>
 

@@ -56,16 +56,15 @@ export default function MyStorePage() {
       if (store && (store.id || store._id)) {
         setStoreData(store);
         setFormData({
-          name: store.name || { vi: "", en: "", jp: "", zh: "", ru: "" },
-          address: store.address || { vi: "", en: "", jp: "", zh: "", ru: "" },
-          description: store.description || { vi: "", en: "", jp: "", zh: "", ru: "" },
-          openingHours: store.openingHours || { vi: "", en: "", jp: "", zh: "", ru: "" },
-          phoneNumber: store.phoneNumber || "",
+          name: store.nameRaw || { vi: "", en: "", jp: "", zh: "", ru: "" },
+          address: store.addressRaw || { vi: "", en: "", jp: "", zh: "", ru: "" },
+          description: store.descriptionRaw || { vi: "", en: "", jp: "", zh: "", ru: "" },
+          openingHours: store.openingHoursRaw || { vi: "", en: "", jp: "", zh: "", ru: "" },
+          phoneNumber: store.phone || "",
           location: store.location 
           ? { lat: store.location.lat, lng: store.location.lng } 
           : { lat: 15.87944, lng: 108.33194 },
           images: store.images || [],
-          // Đổ dữ liệu âm thanh cũ (nếu có)
           audioUrl: store.audioUrlRaw || store.audioUrl || { vi: "", en: "", jp: "", zh: "", ru: "" }, 
         });
       } else {

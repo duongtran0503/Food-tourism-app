@@ -1,4 +1,4 @@
-import api from "@/lib/axios"; // Dùng duy nhất một instance đã cấu hình
+import api from "@/lib/axios";
 
 export const RestaurantService = {
   getAll: (params?: { page?: number; limit?: number; search?: string; foodId?: string }) => 
@@ -26,6 +26,5 @@ export const RestaurantService = {
 };
 
 export const FoodService = {
-  getAll: () => api.get("/foods"),
+  getAll: (params?: any) => api.get("/foods", { params }),
 };
-
